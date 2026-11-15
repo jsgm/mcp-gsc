@@ -1,3 +1,4 @@
+import { cleanValue } from "../config";
 import { bytesToBase64Url, stringToBase64Url } from "../util/base64url";
 
 const DEFAULT_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -12,7 +13,7 @@ export interface ServiceAccountKey {
 export function parseServiceAccount(json: string): ServiceAccountKey {
   let data: unknown;
   try {
-    data = JSON.parse(json);
+    data = JSON.parse(cleanValue(json));
   } catch {
     throw new Error("GSC_SERVICE_ACCOUNT_JSON is not valid JSON.");
   }
