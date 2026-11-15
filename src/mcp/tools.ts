@@ -249,7 +249,9 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       title: "Compare periods",
       description:
         "Compares two date ranges by query or page: totals, biggest click gains and losses, and new or lost items. " +
-        "If period 2 is omitted, the previous period of equal length is used.",
+        "If period 2 is omitted, the previous period of equal length is used. " +
+        "The comparison uses the top `max_rows` items by clicks of each period; raise max_rows on large sites " +
+        "so new/lost counts are complete (the output warns when they are truncated).",
       inputSchema: {
         site_url: siteUrl,
         period1_start: z.string().optional().describe("Recent period start YYYY-MM-DD. Defaults to last 28 days."),
@@ -260,6 +262,16 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
         search_type: searchType,
         filters,
         limit: z.number().int().min(1).max(100).optional().describe("Rows per section. Default 20."),
+        max_rows: z
+          .number()
+          .int()
+          .min(100)
+          .max(25000)
+          .optional()
+          .describe(
+            "Items fetched per period for the comparison (top by clicks). Default 5000, max 25000. " +
+              "Use a value above the site's number of pages/queries to get exact new/lost counts.",
+          ),
       },
     },
     async (args, client) => {
@@ -271,13 +283,14 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
           : previousRange(p1);
       const dim = args.dimension ?? "query";
       const limit = args.limit ?? 20;
+      const maxRows = args.max_rows ?? 5000;
       const base = { type: args.search_type, filters: mapFilters(args.filters) };
 
       const [t1, t2, r1, r2] = await Promise.all([
         client.searchAnalytics(site, { ...p1, ...base }),
         client.searchAnalytics(site, { ...p2, ...base }),
-        client.searchAnalytics(site, { ...p1, ...base, dimensions: [dim], rowLimit: 5000 }),
-        client.searchAnalytics(site, { ...p2, ...base, dimensions: [dim], rowLimit: 5000 }),
+        client.searchAnalytics(site, { ...p1, ...base, dimensions: [dim], rowLimit: maxRows }),
+        client.searchAnalytics(site, { ...p2, ...base, dimensions: [dim], rowLimit: maxRows }),
       ]);
       const a = totalsFromRows(t1);
       const b = totalsFromRows(t2);
@@ -302,6 +315,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
       const headers = [dim, "Clicks P1", "Clicks P2", "Δ clicks", "Pos P1", "Pos P2"];
       const gains = diffs.filter((d) => d.delta > 0).sort((x, y) => y.delta - x.delta).slice(0, limit);
       const losses = diffs.filter((d) => d.delta < 0).sort((x, y) => x.delta - y.delta).slice(0, limit);
+      const truncated = r1.length >= maxRows || r2.length >= maxRows;
       const newItems = diffs.filter((d) => d.now && !d.before).length;
       const lostItems = diffs.filter((d) => !d.now && d.before).length;
 
@@ -318,7 +332,15 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
           ],
         ),
         "",
-        `New ${dim === "query" ? "queries" : "pages"} in P1 (not in P2 top 5000): ${newItems} · Lost (in P2, not in P1): ${lostItems}`,
+        `New ${dim === "query" ? "queries" : "pages"} in P1 (not in P2): ${newItems} · Lost (in P2, not in P1): ${lostItems}` +
+          ` · items compared: P1 ${r1.length}, P2 ${r2.length}`,
+        ...(truncated
+          ? [
+              `⚠ Truncated: at least one period returned the maximum of ${maxRows} items, so new/lost counts only reflect ` +
+                `items entering or leaving that top ${maxRows} (they are not real new/lost ${dim === "query" ? "queries" : "pages"}). ` +
+                `Call again with a higher max_rows (up to 25000) for exact counts.`,
+            ]
+          : []),
         "",
         "Top gains:",
         table(headers, gains.map(row)),
