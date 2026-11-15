@@ -12,7 +12,7 @@ export interface Env {
   CF_ACCESS_CLIENT_SECRET: string;
   CF_ACCESS_AUTHORIZATION_URL: string;
   CF_ACCESS_TOKEN_URL: string;
-  CF_ACCESS_JWKS_URL: string;
+  CF_ACCESS_KEY_ENDPOINT: string;
 
   // Optional comma-separated allowlist checked after Access login.
   ALLOWED_EMAILS?: string;

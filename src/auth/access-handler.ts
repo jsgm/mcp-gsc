@@ -143,7 +143,7 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   const tokens = (await tokenRes.json()) as { id_token?: string };
   if (!tokens.id_token) return fail("Cloudflare Access did not return an ID token.", 502);
 
-  const jwksRes = await fetch(env.CF_ACCESS_JWKS_URL);
+  const jwksRes = await fetch(env.CF_ACCESS_KEY_ENDPOINT);
   if (!jwksRes.ok) return fail("Could not load Cloudflare Access signing keys.", 502);
   const jwks = (await jwksRes.json()) as { keys: { kty: string; kid?: string; n?: string; e?: string }[] };
 
