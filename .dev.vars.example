@@ -1,10 +1,11 @@
-# Copy to .dev.vars for local development with `npm run dev`.
-# For local testing, add http://localhost:8787/callback as a redirect URL
-# in your Cloudflare Access for SaaS application.
+# Secrets required by the Worker.
+# - The "Deploy to Cloudflare" button asks for each of these (all are required).
+# - For local development, copy this file to .dev.vars and fill it in.
+#   Also add http://localhost:8787/callback as a redirect URL in your
+#   Cloudflare Access for SaaS application.
+# Keep only required secrets here: every entry becomes a deploy prompt.
 
-# Service account JSON on a single line.
 GSC_SERVICE_ACCOUNT_JSON='{"type":"service_account","client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"}'
-
 ACCESS_CLIENT_ID=""
 ACCESS_CLIENT_SECRET=""
 ACCESS_AUTHORIZATION_URL="https://<team>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/authorization"

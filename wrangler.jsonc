@@ -13,22 +13,21 @@
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GscMCP"] }],
 
   // OAuth tokens, registered clients and login state.
-  // Create it with: npx wrangler kv namespace create OAUTH_KV
-  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "REPLACE_WITH_YOUR_KV_ID" }],
-
-  // Optional extra allowlist on top of the Cloudflare Access policy
-  // (comma-separated emails). Leave empty to rely only on Access.
-  "vars": {
-    "ALLOWED_EMAILS": ""
-  },
+  // No "id": the KV namespace is provisioned automatically on the first deploy
+  // (Deploy to Cloudflare button or `wrangler deploy`), and its id is filled in.
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
 
   "observability": { "enabled": true }
 
-  // Secrets (set with `npx wrangler secret put NAME`):
+  // Secrets (listed in .dev.vars.example; the Deploy button asks for them,
+  // or set them with `npx wrangler secret put NAME`):
   //   GSC_SERVICE_ACCOUNT_JSON  - full JSON key of the Google service account
   //   ACCESS_CLIENT_ID          - Cloudflare Access for SaaS (OIDC) client ID
   //   ACCESS_CLIENT_SECRET      - Cloudflare Access for SaaS (OIDC) client secret
   //   ACCESS_AUTHORIZATION_URL  - .../cdn-cgi/access/sso/oidc/<client_id>/authorization
   //   ACCESS_TOKEN_URL          - .../cdn-cgi/access/sso/oidc/<client_id>/token
   //   ACCESS_JWKS_URL           - .../cdn-cgi/access/sso/oidc/<client_id>/jwks
+  //
+  // Optional: ALLOWED_EMAILS (comma-separated) as an extra allowlist on top of
+  // the Cloudflare Access policy. Add it as a variable or secret if you want it.
 }
