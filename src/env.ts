@@ -8,11 +8,11 @@ export interface Env {
   GSC_SERVICE_ACCOUNT_JSON: string;
 
   // Cloudflare Access for SaaS (OIDC)
-  ACCESS_CLIENT_ID: string;
-  ACCESS_CLIENT_SECRET: string;
-  ACCESS_AUTHORIZATION_URL: string;
-  ACCESS_TOKEN_URL: string;
-  ACCESS_JWKS_URL: string;
+  CF_ACCESS_CLIENT_ID: string;
+  CF_ACCESS_CLIENT_SECRET: string;
+  CF_ACCESS_AUTHORIZATION_URL: string;
+  CF_ACCESS_TOKEN_URL: string;
+  CF_ACCESS_JWKS_URL: string;
 
   // Optional comma-separated allowlist checked after Access login.
   ALLOWED_EMAILS?: string;

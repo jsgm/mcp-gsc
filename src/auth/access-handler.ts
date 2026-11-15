@@ -95,8 +95,8 @@ async function handleAuthorizePost(request: Request, env: HandlerEnv): Promise<R
   pending.approved = true;
   await env.OAUTH_KV.put(stateKey(stateId), JSON.stringify(pending), { expirationTtl: STATE_TTL_SECONDS });
 
-  const authorize = new URL(env.ACCESS_AUTHORIZATION_URL);
-  authorize.searchParams.set("client_id", env.ACCESS_CLIENT_ID);
+  const authorize = new URL(env.CF_ACCESS_AUTHORIZATION_URL);
+  authorize.searchParams.set("client_id", env.CF_ACCESS_CLIENT_ID);
   authorize.searchParams.set("redirect_uri", new URL("/callback", request.url).href);
   authorize.searchParams.set("response_type", "code");
   authorize.searchParams.set("scope", "openid email profile");
@@ -125,15 +125,15 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   if (!pending.approved) return fail("This login was not approved.");
 
   // Exchange the code with Cloudflare Access.
-  const tokenRes = await fetch(env.ACCESS_TOKEN_URL, {
+  const tokenRes = await fetch(env.CF_ACCESS_TOKEN_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
       redirect_uri: new URL("/callback", request.url).href,
-      client_id: env.ACCESS_CLIENT_ID,
-      client_secret: env.ACCESS_CLIENT_SECRET,
+      client_id: env.CF_ACCESS_CLIENT_ID,
+      client_secret: env.CF_ACCESS_CLIENT_SECRET,
     }),
   });
   if (!tokenRes.ok) {
@@ -143,13 +143,13 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   const tokens = (await tokenRes.json()) as { id_token?: string };
   if (!tokens.id_token) return fail("Cloudflare Access did not return an ID token.", 502);
 
-  const jwksRes = await fetch(env.ACCESS_JWKS_URL);
+  const jwksRes = await fetch(env.CF_ACCESS_JWKS_URL);
   if (!jwksRes.ok) return fail("Could not load Cloudflare Access signing keys.", 502);
   const jwks = (await jwksRes.json()) as { keys: { kty: string; kid?: string; n?: string; e?: string }[] };
 
   let claims;
   try {
-    claims = await verifyIdToken(tokens.id_token, jwks, { audience: env.ACCESS_CLIENT_ID, nonce: pending.nonce });
+    claims = await verifyIdToken(tokens.id_token, jwks, { audience: env.CF_ACCESS_CLIENT_ID, nonce: pending.nonce });
   } catch (err) {
     console.log(JSON.stringify({ event: "id_token_invalid", error: err instanceof Error ? err.message : String(err) }));
     return fail("Invalid identity token from Cloudflare Access.", 401);
