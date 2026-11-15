@@ -6,8 +6,8 @@
 # Keep only required secrets here: every entry becomes a deploy prompt.
 
 GSC_SERVICE_ACCOUNT_JSON='{"type":"service_account","client_email":"...","private_key":"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"}'
-ACCESS_CLIENT_ID=""
-ACCESS_CLIENT_SECRET=""
-ACCESS_AUTHORIZATION_URL="https://<team>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/authorization"
-ACCESS_TOKEN_URL="https://<team>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/token"
-ACCESS_JWKS_URL="https://<team>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/jwks"
+CF_ACCESS_CLIENT_ID=""
+CF_ACCESS_CLIENT_SECRET=""
+CF_ACCESS_AUTHORIZATION_URL="https://<team>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/authorization"
+CF_ACCESS_TOKEN_URL="https://<team>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/token"
+CF_ACCESS_JWKS_URL="https://<team>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/jwks"
