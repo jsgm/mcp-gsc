@@ -165,7 +165,8 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   const props: Props = { sub: claims.sub, email, name: claims.name };
   const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
     request: pending.oauthReqInfo,
-    userId: claims.sub,
+    // workers-oauth-provider >= 1.2 does not allow ":" in user IDs.
+    userId: claims.sub.replace(/:/g, "_"),
     metadata: { label: email },
     scope: pending.oauthReqInfo.scope,
     props,
