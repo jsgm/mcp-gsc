@@ -22,10 +22,10 @@
       "CF_ACCESS_CLIENT_SECRET": {
         "description": "**Client secret** de la aplicación SaaS (OIDC) de Cloudflare Access."
       },
-      "CF_ACCESS_AUTHORIZATION_URL": {
+      "CF_ACCESS_AUTHORIZATION_ENDPOINT": {
         "description": "**Authorization endpoint** de la aplicación de Access, p. ej. `https://<equipo>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<client_id>/authorization`."
       },
-      "CF_ACCESS_TOKEN_URL": {
+      "CF_ACCESS_TOKEN_ENDPOINT": {
         "description": "**Token endpoint** de la aplicación de Access (termina en `/token`)."
       },
       "CF_ACCESS_KEY_ENDPOINT": {

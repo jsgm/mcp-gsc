@@ -95,7 +95,7 @@ async function handleAuthorizePost(request: Request, env: HandlerEnv): Promise<R
   pending.approved = true;
   await env.OAUTH_KV.put(stateKey(stateId), JSON.stringify(pending), { expirationTtl: STATE_TTL_SECONDS });
 
-  const authorize = new URL(env.CF_ACCESS_AUTHORIZATION_URL);
+  const authorize = new URL(env.CF_ACCESS_AUTHORIZATION_ENDPOINT);
   authorize.searchParams.set("client_id", env.CF_ACCESS_CLIENT_ID);
   authorize.searchParams.set("redirect_uri", new URL("/callback", request.url).href);
   authorize.searchParams.set("response_type", "code");
@@ -125,7 +125,7 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   if (!pending.approved) return fail("This login was not approved.");
 
   // Exchange the code with Cloudflare Access.
-  const tokenRes = await fetch(env.CF_ACCESS_TOKEN_URL, {
+  const tokenRes = await fetch(env.CF_ACCESS_TOKEN_ENDPOINT, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({

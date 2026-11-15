@@ -76,7 +76,7 @@ Los nombres exactos del panel pueden variar ligeramente según la versión de Ze
 2. Cloudflare copia el repositorio en tu GitHub o GitLab, crea el Worker, el KV y el Durable Object, y configura despliegues automáticos en cada push.
 3. Te pedirá los 6 secrets, con una descripción de dónde sacar cada uno:
    - `GSC_SERVICE_ACCOUNT_JSON`: pega el contenido completo del JSON de la cuenta de servicio.
-   - `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `CF_ACCESS_AUTHORIZATION_URL`, `CF_ACCESS_TOKEN_URL`, `CF_ACCESS_KEY_ENDPOINT`: los valores del paso 2.
+   - `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `CF_ACCESS_AUTHORIZATION_ENDPOINT`, `CF_ACCESS_TOKEN_ENDPOINT`, `CF_ACCESS_KEY_ENDPOINT`: los valores del paso 2.
 4. Si cambias el nombre del Worker en el formulario, actualiza la Redirect URL de la aplicación de Access para que coincida.
 
 Si aún no tienes la aplicación de Access, puedes poner `pendiente` en sus secrets y cambiarlos después en **Workers & Pages → mcp-gsc → Settings → Variables and Secrets**. El MCP no funcionará hasta entonces, porque el login depende de ellos.
@@ -92,8 +92,8 @@ npx wrangler deploy        # crea el KV automáticamente → https://mcp-gsc.<tu
 npx wrangler secret put GSC_SERVICE_ACCOUNT_JSON < ruta/a/la-cuenta-de-servicio.json
 npx wrangler secret put CF_ACCESS_CLIENT_ID
 npx wrangler secret put CF_ACCESS_CLIENT_SECRET
-npx wrangler secret put CF_ACCESS_AUTHORIZATION_URL
-npx wrangler secret put CF_ACCESS_TOKEN_URL
+npx wrangler secret put CF_ACCESS_AUTHORIZATION_ENDPOINT
+npx wrangler secret put CF_ACCESS_TOKEN_ENDPOINT
 npx wrangler secret put CF_ACCESS_KEY_ENDPOINT
 ```
 
