@@ -73,7 +73,7 @@ Los nombres exactos del panel pueden variar ligeramente según la versión de Ze
 #### Opción A: botón "Deploy to Cloudflare" (recomendado)
 
 1. Pulsa el botón del principio de este README.
-2. Cloudflare copia el repositorio en tu GitHub o GitLab, crea el Worker, el KV y el Durable Object, y configura despliegues automáticos en cada push.
+2. Cloudflare copia el repositorio en tu GitHub o GitLab, crea el Worker y el KV, y configura despliegues automáticos en cada push.
 3. Te pedirá los 6 secrets, con una descripción de dónde sacar cada uno:
    - `GSC_SERVICE_ACCOUNT_JSON`: pega el contenido completo del JSON de la cuenta de servicio.
    - `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `CF_ACCESS_AUTHORIZATION_ENDPOINT`, `CF_ACCESS_TOKEN_ENDPOINT`, `CF_ACCESS_KEY_ENDPOINT`: los valores del paso 2.
@@ -139,6 +139,16 @@ cp .dev.vars.example .dev.vars   # rellena los valores
 npm run dev                      # http://localhost:8787
 npx @modelcontextprotocol/inspector   # conecta a http://localhost:8787/mcp
 ```
+
+### Actualizar dependencias
+
+El servidor usa `createMcpHandler` de `agents` con el SDK v2 de MCP (`@modelcontextprotocol/server`), sin estado y sin Durable Objects. `agents` exige una versión **exacta** de `@modelcontextprotocol/server` y no la instala por ti, así que ambas están fijadas en `package.json`. Si actualizas `agents`, consulta la versión que pide:
+
+```bash
+npm view agents@<versión> peerDependencies
+```
+
+y pon esa misma versión de `@modelcontextprotocol/server`.
 
 ## Seguridad
 

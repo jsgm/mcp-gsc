@@ -6,12 +6,6 @@
   "compatibility_date": "2025-10-01",
   "compatibility_flags": ["nodejs_compat"],
 
-  // Each MCP session runs in a Durable Object (required by McpAgent).
-  "durable_objects": {
-    "bindings": [{ "class_name": "GscMCP", "name": "MCP_OBJECT" }]
-  },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GscMCP"] }],
-
   // OAuth tokens, registered clients and login state.
   // No "id": the KV namespace is provisioned automatically on the first deploy
   // (Deploy to Cloudflare button or `wrangler deploy`), and its id is filled in.

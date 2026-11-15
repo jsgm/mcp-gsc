@@ -2,7 +2,6 @@ import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 
 export interface Env {
   OAUTH_KV: KVNamespace;
-  MCP_OBJECT: DurableObjectNamespace;
 
   // Google
   GSC_SERVICE_ACCOUNT_JSON: string;
@@ -21,7 +20,7 @@ export interface Env {
 /** Env as seen by the default (non-API) handler: the OAuth provider injects its helpers. */
 export type HandlerEnv = Env & { OAUTH_PROVIDER: OAuthHelpers };
 
-/** Identity of the authenticated user, stored with the OAuth grant and passed to the MCP agent. */
+/** Identity of the authenticated user, stored with the OAuth grant and available to tools via getMcpAuthContext(). */
 export type Props = {
   sub: string;
   email: string;
