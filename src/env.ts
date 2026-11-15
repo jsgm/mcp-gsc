@@ -10,8 +10,8 @@ export interface Env {
   // Cloudflare Access for SaaS (OIDC)
   CF_ACCESS_CLIENT_ID: string;
   CF_ACCESS_CLIENT_SECRET: string;
-  CF_ACCESS_AUTHORIZATION_URL: string;
-  CF_ACCESS_TOKEN_URL: string;
+  CF_ACCESS_AUTHORIZATION_ENDPOINT: string;
+  CF_ACCESS_TOKEN_ENDPOINT: string;
   CF_ACCESS_KEY_ENDPOINT: string;
 
   // Optional comma-separated allowlist checked after Access login.
