@@ -1,5 +1,6 @@
 import type { AuthRequest } from "@cloudflare/workers-oauth-provider";
 import type { HandlerEnv, Props } from "../env";
+import { accessConfig, ConfigError } from "../config";
 import { randomId } from "../util/base64url";
 import { verifyIdToken } from "./oidc";
 import { consentPage, errorPage, homePage, htmlResponse } from "./pages";
@@ -92,11 +93,13 @@ async function handleAuthorizePost(request: Request, env: HandlerEnv): Promise<R
   const raw = await env.OAUTH_KV.get(stateKey(stateId));
   if (!raw) return fail("Login session expired. Start the connection again from your MCP client.");
   const pending = JSON.parse(raw) as PendingAuth;
+  // Validate configuration before touching state, so errors are explicit.
+  const cfg = accessConfig(env);
   pending.approved = true;
   await env.OAUTH_KV.put(stateKey(stateId), JSON.stringify(pending), { expirationTtl: STATE_TTL_SECONDS });
 
-  const authorize = new URL(env.CF_ACCESS_AUTHORIZATION_ENDPOINT);
-  authorize.searchParams.set("client_id", env.CF_ACCESS_CLIENT_ID);
+  const authorize = new URL(cfg.authorizationEndpoint);
+  authorize.searchParams.set("client_id", cfg.clientId);
   authorize.searchParams.set("redirect_uri", new URL("/callback", request.url).href);
   authorize.searchParams.set("response_type", "code");
   authorize.searchParams.set("scope", "openid email profile");
@@ -115,6 +118,7 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   const stateId = url.searchParams.get("state");
   const cookie = readCookie(request, COOKIE);
   if (!code || !stateId) return fail("Missing code or state.");
+  const cfg = accessConfig(env);
   // The cookie ties the callback to the browser that saw the consent page.
   if (!cookie || !timingSafeEqual(stateId, cookie)) return fail("Login session mismatch. Start again from your MCP client.");
 
@@ -125,31 +129,37 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   if (!pending.approved) return fail("This login was not approved.");
 
   // Exchange the code with Cloudflare Access.
-  const tokenRes = await fetch(env.CF_ACCESS_TOKEN_ENDPOINT, {
+  const tokenRes = await fetch(cfg.tokenEndpoint, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
       redirect_uri: new URL("/callback", request.url).href,
-      client_id: env.CF_ACCESS_CLIENT_ID,
-      client_secret: env.CF_ACCESS_CLIENT_SECRET,
+      client_id: cfg.clientId,
+      client_secret: cfg.clientSecret,
     }),
   });
   if (!tokenRes.ok) {
-    console.log(JSON.stringify({ event: "access_token_error", status: tokenRes.status, body: (await tokenRes.text()).slice(0, 300) }));
-    return fail("Could not complete the login with Cloudflare Access.", 502);
+    const body = (await tokenRes.text()).slice(0, 300);
+    console.log(JSON.stringify({ event: "access_token_error", status: tokenRes.status, body }));
+    return fail(
+      `Cloudflare Access rejected the code exchange (${tokenRes.status}). ` +
+        "Check CF_ACCESS_CLIENT_ID, CF_ACCESS_CLIENT_SECRET and CF_ACCESS_TOKEN_ENDPOINT, and that the Access application's redirect URL is " +
+        new URL("/callback", request.url).href,
+      502,
+    );
   }
   const tokens = (await tokenRes.json()) as { id_token?: string };
   if (!tokens.id_token) return fail("Cloudflare Access did not return an ID token.", 502);
 
-  const jwksRes = await fetch(env.CF_ACCESS_KEY_ENDPOINT);
-  if (!jwksRes.ok) return fail("Could not load Cloudflare Access signing keys.", 502);
+  const jwksRes = await fetch(cfg.keyEndpoint);
+  if (!jwksRes.ok) return fail(`Could not load Cloudflare Access signing keys (${jwksRes.status}). Check CF_ACCESS_KEY_ENDPOINT.`, 502);
   const jwks = (await jwksRes.json()) as { keys: { kty: string; kid?: string; n?: string; e?: string }[] };
 
   let claims;
   try {
-    claims = await verifyIdToken(tokens.id_token, jwks, { audience: env.CF_ACCESS_CLIENT_ID, nonce: pending.nonce });
+    claims = await verifyIdToken(tokens.id_token, jwks, { audience: cfg.clientId, nonce: pending.nonce });
   } catch (err) {
     console.log(JSON.stringify({ event: "id_token_invalid", error: err instanceof Error ? err.message : String(err) }));
     return fail("Invalid identity token from Cloudflare Access.", 401);
@@ -189,8 +199,10 @@ export const accessHandler = {
       if (url.pathname === "/" && request.method === "GET") return htmlResponse(homePage(url.origin));
       return new Response("Not found", { status: 404 });
     } catch (err) {
-      console.log(JSON.stringify({ event: "handler_error", path: url.pathname, error: err instanceof Error ? err.message : String(err) }));
-      return fail("Unexpected error during authorization.", 500);
+      const message = err instanceof Error ? err.message : String(err);
+      console.log(JSON.stringify({ event: "handler_error", path: url.pathname, error: message }));
+      if (err instanceof ConfigError) return fail(`Server misconfiguration: ${message}`, 500);
+      return fail(`Unexpected error during authorization: ${message}`, 500);
     }
   },
 };
