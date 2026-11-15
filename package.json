@@ -28,7 +28,7 @@
       "CF_ACCESS_TOKEN_URL": {
         "description": "**Token endpoint** de la aplicación de Access (termina en `/token`)."
       },
-      "CF_ACCESS_JWKS_URL": {
+      "CF_ACCESS_KEY_ENDPOINT": {
         "description": "**Key endpoint (JWKS)** de la aplicación de Access (termina en `/jwks`)."
       },
       "OAUTH_KV": {
