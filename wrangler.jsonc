@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Change the name to deploy another instance (e.g. "mcp-gsc-personal").
+  "name": "mcp-gsc",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Each MCP session runs in a Durable Object (required by McpAgent).
+  "durable_objects": {
+    "bindings": [{ "class_name": "GscMCP", "name": "MCP_OBJECT" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GscMCP"] }],
+
+  // OAuth tokens, registered clients and login state.
+  // Create it with: npx wrangler kv namespace create OAUTH_KV
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "REPLACE_WITH_YOUR_KV_ID" }],
+
+  // Optional extra allowlist on top of the Cloudflare Access policy
+  // (comma-separated emails). Leave empty to rely only on Access.
+  "vars": {
+    "ALLOWED_EMAILS": ""
+  },
+
+  "observability": { "enabled": true }
+
+  // Secrets (set with `npx wrangler secret put NAME`):
+  //   GSC_SERVICE_ACCOUNT_JSON  - full JSON key of the Google service account
+  //   ACCESS_CLIENT_ID          - Cloudflare Access for SaaS (OIDC) client ID
+  //   ACCESS_CLIENT_SECRET      - Cloudflare Access for SaaS (OIDC) client secret
+  //   ACCESS_AUTHORIZATION_URL  - .../cdn-cgi/access/sso/oidc/<client_id>/authorization
+  //   ACCESS_TOKEN_URL          - .../cdn-cgi/access/sso/oidc/<client_id>/token
+  //   ACCESS_JWKS_URL           - .../cdn-cgi/access/sso/oidc/<client_id>/jwks
+}
