@@ -38,9 +38,9 @@
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "latest",
-    "@modelcontextprotocol/sdk": "latest",
-    "agents": "latest",
-    "zod": "^3.25.0"
+    "@modelcontextprotocol/server": "2.3.1",
+    "agents": "0.29.0",
+    "zod": "^4.2.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "latest",

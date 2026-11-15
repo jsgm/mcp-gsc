@@ -1,4 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { type AnalyticsFilter, type AnalyticsRow, GscApiError, type GscClient } from "../gsc/client";
 import {
@@ -91,14 +91,20 @@ async function mapConcurrent<T, R>(items: T[], limit: number, fn: (item: T) => P
 
 export function registerTools(server: McpServer, ctx: ToolContext): void {
   /** Wraps every handler with error formatting and a structured usage log. */
-  function register<S extends z.ZodRawShape>(
+  function register<S extends Record<string, z.ZodType>>(
     name: string,
     config: { title: string; description: string; inputSchema: S },
-    handler: (args: z.objectOutputType<S, z.ZodTypeAny>, client: GscClient) => Promise<string>,
+    handler: (args: z.infer<z.ZodObject<S>>, client: GscClient) => Promise<string>,
   ): void {
     server.registerTool(
       name,
-      { ...config, annotations: { title: config.title, ...READ_ONLY } },
+      {
+        title: config.title,
+        description: config.description,
+        // MCP SDK v2 expects a full schema object, not a raw shape.
+        inputSchema: z.object(config.inputSchema),
+        annotations: { title: config.title, ...READ_ONLY },
+      },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (async (args: any): Promise<ToolResult> => {
         const started = Date.now();
@@ -374,7 +380,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
         "Quota: about 2,000 inspections per property per day.",
       inputSchema: {
         site_url: siteUrl,
-        url: z.string().url().describe("Full URL to inspect; must belong to the property."),
+        url: z.url().describe("Full URL to inspect; must belong to the property."),
         language_code: z.string().optional().describe("Language for messages, e.g. es-ES. Default en-US."),
       },
     },
@@ -424,7 +430,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
         "Each URL counts against the ~2,000/day per-property inspection quota.",
       inputSchema: {
         site_url: siteUrl,
-        urls: z.array(z.string().url()).min(1).max(20),
+        urls: z.array(z.url()).min(1).max(20),
         language_code: z.string().optional(),
       },
     },
@@ -489,7 +495,7 @@ export function registerTools(server: McpServer, ctx: ToolContext): void {
     {
       title: "Sitemap details",
       description: "Details of one submitted sitemap.",
-      inputSchema: { site_url: siteUrl, sitemap_url: z.string().url().describe("Full sitemap URL as submitted.") },
+      inputSchema: { site_url: siteUrl, sitemap_url: z.url().describe("Full sitemap URL as submitted.") },
     },
     async (args, client) => {
       const site = await client.resolveSite(args.site_url);
