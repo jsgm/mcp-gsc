@@ -15,6 +15,10 @@ export interface Env {
 
   // Optional comma-separated allowlist checked after Access login.
   ALLOWED_EMAILS?: string;
+
+  // Optional comma-separated hostnames allowed as OAuth redirect targets
+  // (e.g. "claude.ai,chatgpt.com,localhost"). Empty = any registered redirect.
+  ALLOWED_REDIRECT_HOSTS?: string;
 }
 
 /** Env as seen by the default (non-API) handler: the OAuth provider injects its helpers. */

@@ -50,10 +50,17 @@ function providerFor(origin: string): InstanceType<typeof OAuthProvider> {
   return provider;
 }
 
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
 export default {
   fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    // OAuth requires HTTPS (and the provider rejects http resources outside loopback).
+    if (url.protocol === "http:" && !LOOPBACK.has(url.hostname) && !url.hostname.endsWith(".localhost")) {
+      url.protocol = "https:";
+      return Promise.resolve(Response.redirect(url.href, 308));
+    }
     // URL.origin is already lowercased (scheme + host), as the library requires.
-    const origin = new URL(request.url).origin;
-    return Promise.resolve(providerFor(origin).fetch(request, env, ctx));
+    return Promise.resolve(providerFor(url.origin).fetch(request, env, ctx));
   },
 };

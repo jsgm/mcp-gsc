@@ -51,6 +51,61 @@ function fail(message: string, status = 400): Response {
   return htmlResponse(errorPage(message), { status, headers: { "set-cookie": stateCookie("", 0) } });
 }
 
+/** Redirect hosts of well-known MCP clients (Claude, ChatGPT, local clients such as Claude Code). */
+const KNOWN_REDIRECT_HOSTS = ["claude.ai", "claude.com", "chatgpt.com", "localhost", "127.0.0.1", "[::1]"];
+
+function redirectHostname(uri: string): string {
+  try {
+    return new URL(uri).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function isKnownRedirect(uri: string): boolean {
+  return KNOWN_REDIRECT_HOSTS.includes(redirectHostname(uri));
+}
+
+/** Optional hard allowlist (ALLOWED_REDIRECT_HOSTS, comma-separated hostnames). Empty = allow any registered redirect. */
+function redirectAllowed(env: HandlerEnv, uri: string): boolean {
+  const list = (env.ALLOWED_REDIRECT_HOSTS ?? "")
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return list.length === 0 || list.includes(redirectHostname(uri));
+}
+
+/** Parses and validates the OAuth request carried in `request`'s query string. */
+async function validatedAuthRequest(request: Request, env: HandlerEnv) {
+  const oauthReqInfo = await env.OAUTH_PROVIDER.parseAuthRequest(request);
+  if (!oauthReqInfo.clientId) throw new AuthFlowError("Missing client_id.");
+  const client = await env.OAUTH_PROVIDER.lookupClient(oauthReqInfo.clientId);
+  if (!client) throw new AuthFlowError("Unknown client.");
+  if (!client.redirectUris.includes(oauthReqInfo.redirectUri)) throw new AuthFlowError("Invalid redirect_uri for this client.");
+  if (!redirectAllowed(env, oauthReqInfo.redirectUri)) {
+    throw new AuthFlowError(`Redirects to ${redirectHostname(oauthReqInfo.redirectUri) || oauthReqInfo.redirectUri} are not allowed on this server.`, 403);
+  }
+  return { oauthReqInfo, client };
+}
+
+class AuthFlowError extends Error {
+  constructor(
+    message: string,
+    public status = 400,
+  ) {
+    super(message);
+  }
+}
+
+/** Origin of the Access authorization endpoint, for the consent page's CSP form-action (null if not configured yet). */
+function accessOrigin(env: HandlerEnv): string | null {
+  try {
+    return new URL(accessConfig(env).authorizationEndpoint).origin;
+  } catch {
+    return null;
+  }
+}
+
 function allowedByList(env: HandlerEnv, email: string): boolean {
   const list = (env.ALLOWED_EMAILS ?? "")
     .split(",")
@@ -60,42 +115,49 @@ function allowedByList(env: HandlerEnv, email: string): boolean {
 }
 
 async function handleAuthorizeGet(request: Request, env: HandlerEnv): Promise<Response> {
-  const oauthReqInfo = await env.OAUTH_PROVIDER.parseAuthRequest(request);
-  if (!oauthReqInfo.clientId) return fail("Missing client_id.");
+  const { oauthReqInfo, client } = await validatedAuthRequest(request, env);
 
-  const client = await env.OAUTH_PROVIDER.lookupClient(oauthReqInfo.clientId);
-  if (!client) return fail("Unknown client.");
-  if (!client.redirectUris.includes(oauthReqInfo.redirectUri)) return fail("Invalid redirect_uri for this client.");
-
+  // Nothing is stored yet: unauthenticated visitors must not be able to create KV writes.
+  // The random state lives only in an HttpOnly cookie and the form; the OAuth request is
+  // re-parsed and re-validated from the original query string when the user approves.
   const stateId = randomId();
-  const pending: PendingAuth = { oauthReqInfo, nonce: randomId(), approved: false };
-  await env.OAUTH_KV.put(stateKey(stateId), JSON.stringify(pending), { expirationTtl: STATE_TTL_SECONDS });
+  const query = new URL(request.url).search;
+  const formAction = accessOrigin(env);
 
   return htmlResponse(
     consentPage({
       clientName: client.clientName || client.clientId,
       clientUri: client.clientUri,
       redirectUri: oauthReqInfo.redirectUri,
+      redirectHost: redirectHostname(oauthReqInfo.redirectUri),
+      knownClient: isKnownRedirect(oauthReqInfo.redirectUri),
       stateId,
+      query,
     }),
-    { headers: { "set-cookie": stateCookie(stateId, STATE_TTL_SECONDS) } },
+    {
+      headers: { "set-cookie": stateCookie(stateId, STATE_TTL_SECONDS) },
+      // Chrome and Safari apply form-action to the redirect that follows the POST.
+      extraFormAction: formAction ?? undefined,
+    },
   );
 }
 
 async function handleAuthorizePost(request: Request, env: HandlerEnv): Promise<Response> {
   const form = await request.formData();
   const stateId = String(form.get("state") ?? "");
+  const query = String(form.get("query") ?? "");
   const cookie = readCookie(request, COOKIE);
   if (!stateId || !cookie || !timingSafeEqual(stateId, cookie)) {
     return fail("Login session expired or invalid. Start the connection again from your MCP client.");
   }
+  if (!query.startsWith("?") || query.length > 8192) return fail("Invalid authorization request.");
 
-  const raw = await env.OAUTH_KV.get(stateKey(stateId));
-  if (!raw) return fail("Login session expired. Start the connection again from your MCP client.");
-  const pending = JSON.parse(raw) as PendingAuth;
-  // Validate configuration before touching state, so errors are explicit.
+  // Re-parse and re-validate exactly what was shown on the consent page.
+  const original = new Request(new URL(`/authorize${query}`, request.url).href, { method: "GET" });
+  const { oauthReqInfo } = await validatedAuthRequest(original, env);
   const cfg = accessConfig(env);
-  pending.approved = true;
+
+  const pending: PendingAuth = { oauthReqInfo, nonce: randomId(), approved: true };
   await env.OAUTH_KV.put(stateKey(stateId), JSON.stringify(pending), { expirationTtl: STATE_TTL_SECONDS });
 
   const authorize = new URL(cfg.authorizationEndpoint);
@@ -199,10 +261,13 @@ export const accessHandler = {
       if (url.pathname === "/" && request.method === "GET") return htmlResponse(homePage(url.origin));
       return new Response("Not found", { status: 404 });
     } catch (err) {
+      if (err instanceof AuthFlowError) return fail(err.message, err.status);
       const message = err instanceof Error ? err.message : String(err);
-      console.log(JSON.stringify({ event: "handler_error", path: url.pathname, error: message }));
+      const ref = randomId(6);
+      console.log(JSON.stringify({ event: "handler_error", ref, path: url.pathname, error: message }));
+      // Config errors never contain secret values, so they are safe (and useful) to show.
       if (err instanceof ConfigError) return fail(`Server misconfiguration: ${message}`, 500);
-      return fail(`Unexpected error during authorization: ${message}`, 500);
+      return fail(`Unexpected error during authorization (ref ${ref}). Details are in the Worker logs.`, 500);
     }
   },
 };
