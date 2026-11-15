@@ -1,5 +1,7 @@
 # mcp-gsc
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jsgm/mcp-gsc)
+
 Servidor MCP remoto de **Google Search Console** sobre **Cloudflare Workers**, para usarlo desde Claude y ChatGPT (web, escritorio y Claude Code).
 
 - **Una cuenta de servicio por despliegue**, con acceso a todas las propiedades en las que la añadas.
@@ -49,23 +51,9 @@ La propiedad se puede indicar como `sc-domain:ejemplo.com`, `https://www.ejemplo
 
 Para añadir una web más adelante solo repites el paso 5; no hay que tocar el Worker.
 
-### 2. Despliegue inicial en Cloudflare
+### 2. Aplicación de Cloudflare Access (OIDC)
 
-```bash
-git clone https://github.com/jsgm/mcp-gsc && cd mcp-gsc
-npm install
-npx wrangler login
-npx wrangler kv namespace create OAUTH_KV
-```
-
-Copia el `id` que devuelve el último comando en `wrangler.jsonc` (`kv_namespaces[0].id`) y despliega una primera vez para conocer la URL:
-
-```bash
-npx wrangler deploy
-# → https://mcp-gsc.<tu-subdominio>.workers.dev
-```
-
-### 3. Aplicación de Cloudflare Access (OIDC)
+La URL del Worker será `https://<nombre-del-worker>.<tu-subdominio>.workers.dev` (el nombre por defecto es `mcp-gsc`; tu subdominio aparece en **Workers & Pages** del panel de Cloudflare). Puedes crear la aplicación de Access antes de desplegar con esa URL prevista.
 
 En el panel de **Cloudflare Zero Trust** (si es la primera vez, te pedirá elegir un nombre de equipo; el plan gratuito cubre hasta 50 usuarios):
 
@@ -80,21 +68,42 @@ En el panel de **Cloudflare Zero Trust** (si es la primera vez, te pedirá elegi
 
 Los nombres exactos del panel pueden variar ligeramente según la versión de Zero Trust.
 
-### 4. Secrets
+### 3. Desplegar
+
+#### Opción A: botón "Deploy to Cloudflare" (recomendado)
+
+1. Pulsa el botón del principio de este README.
+2. Cloudflare copia el repositorio en tu GitHub o GitLab, crea el Worker, el KV y el Durable Object, y configura despliegues automáticos en cada push.
+3. Te pedirá los 6 secrets, con una descripción de dónde sacar cada uno:
+   - `GSC_SERVICE_ACCOUNT_JSON`: pega el contenido completo del JSON de la cuenta de servicio.
+   - `ACCESS_CLIENT_ID`, `ACCESS_CLIENT_SECRET`, `ACCESS_AUTHORIZATION_URL`, `ACCESS_TOKEN_URL`, `ACCESS_JWKS_URL`: los valores del paso 2.
+4. Si cambias el nombre del Worker en el formulario, actualiza la Redirect URL de la aplicación de Access para que coincida.
+
+Si aún no tienes la aplicación de Access, puedes poner `pendiente` en sus secrets y cambiarlos después en **Workers & Pages → mcp-gsc → Settings → Variables and Secrets**. El MCP no funcionará hasta entonces, porque el login depende de ellos.
+
+#### Opción B: manual con Wrangler
 
 ```bash
+git clone https://github.com/jsgm/mcp-gsc && cd mcp-gsc
+npm install
+npx wrangler login
+npx wrangler deploy        # crea el KV automáticamente → https://mcp-gsc.<tu-subdominio>.workers.dev
+
 npx wrangler secret put GSC_SERVICE_ACCOUNT_JSON < ruta/a/la-cuenta-de-servicio.json
 npx wrangler secret put ACCESS_CLIENT_ID
 npx wrangler secret put ACCESS_CLIENT_SECRET
 npx wrangler secret put ACCESS_AUTHORIZATION_URL
 npx wrangler secret put ACCESS_TOKEN_URL
 npx wrangler secret put ACCESS_JWKS_URL
-npx wrangler deploy
 ```
 
-Opcional: `ALLOWED_EMAILS` en `wrangler.jsonc` añade una segunda lista de emails permitidos, comprobada por el propio Worker además de la política de Access.
+Si tu versión de Wrangler no crea el KV automáticamente, créalo con `npx wrangler kv namespace create OAUTH_KV` y añade su `id` en `wrangler.jsonc`.
 
-### 5. Conectar los clientes
+#### Opcional: lista extra de emails
+
+`ALLOWED_EMAILS` (emails separados por comas), añadida como variable o secret del Worker, es una segunda lista de permitidos que comprueba el propio Worker además de la política de Access.
+
+### 4. Conectar los clientes
 
 **Claude (web o escritorio):** Ajustes → Conectores → *Añadir conector personalizado* → URL `https://mcp-gsc.<tu-subdominio>.workers.dev/mcp`. Al conectar se abrirá el login.
 
@@ -112,10 +121,11 @@ Prueba con: *"Lista mis propiedades de Search Console"*.
 
 Mismo código, otra cuenta de servicio y otro Worker:
 
+Lo más sencillo es pulsar otra vez el botón "Deploy to Cloudflare" desde la cuenta de Cloudflare que corresponda, con otro nombre de Worker (p. ej. `mcp-gsc-personal`). A mano:
+
 ```bash
 cp wrangler.jsonc wrangler.personal.jsonc   # cambia "name" (p. ej. mcp-gsc-personal)
-npx wrangler kv namespace create OAUTH_KV_PERSONAL   # pon su id en wrangler.personal.jsonc
-npx wrangler deploy -c wrangler.personal.jsonc
+npx wrangler deploy -c wrangler.personal.jsonc   # crea su propio KV
 npx wrangler secret put GSC_SERVICE_ACCOUNT_JSON -c wrangler.personal.jsonc < personal.json
 # ...resto de secrets con -c wrangler.personal.jsonc
 ```
