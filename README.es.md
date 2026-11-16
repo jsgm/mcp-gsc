@@ -174,4 +174,6 @@ y pon esa misma versión de `@modelcontextprotocol/server`.
 
 ## Licencia
 
-MIT
+[GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).
+
+Puedes usarlo, modificarlo y alojarlo tú mismo libremente. Si ofreces una versión **modificada** como servicio en red a otras personas, la AGPL te obliga a ofrecerles el código fuente de tu versión. La página de inicio del Worker enlaza al código; si haces un fork, cambia ese enlace (`SOURCE_URL` en `src/auth/pages.ts`) para que apunte a tu repositorio.

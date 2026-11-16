@@ -92,12 +92,19 @@ export function errorPage(message: string): string {
   return page("Authorization error", `<h1>Authorization error</h1><p>${escapeHtml(message)}</p>`);
 }
 
+/**
+ * Where users of this service can get its source code (AGPL-3.0, section 13).
+ * If you deploy a modified version, point this to your own repository.
+ */
+export const SOURCE_URL = "https://github.com/jsgm/mcp-gsc";
+
 export function homePage(origin: string): string {
   return page(
     "mcp-gsc",
     `<h1>mcp-gsc</h1>
      <p>Remote MCP server for Google Search Console.</p>
-     <p>Add this URL as a custom connector (OAuth) in Claude or ChatGPT:</p>
-     <p><code>${escapeHtml(origin)}/mcp</code></p>`,
+     <p>Add this URL as a custom connector (OAuth) in your AI agent:</p>
+     <p><code>${escapeHtml(origin)}/mcp</code></p>
+     <p class="note">Source code: <a href="${escapeHtml(SOURCE_URL)}">${escapeHtml(SOURCE_URL)}</a> · License: AGPL-3.0</p>`,
   );
 }
