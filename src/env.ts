@@ -13,8 +13,9 @@ export interface Env {
   CF_ACCESS_TOKEN_ENDPOINT: string;
   CF_ACCESS_KEY_ENDPOINT: string;
 
-  // Optional comma-separated hostnames allowed as OAuth redirect targets
-  // (e.g. "claude.ai,chatgpt.com,localhost"). Empty = any registered redirect.
+  // Optional comma-separated hostnames allowed as OAuth redirect targets.
+  // Unset = DEFAULT_REDIRECT_HOSTS (Claude, ChatGPT/OpenAI, Grok/xAI, Perplexity, loopback).
+  // "*" = allow any registered redirect.
   ALLOWED_REDIRECT_HOSTS?: string;
 }
 

@@ -67,7 +67,7 @@ export function consentPage(opts: {
      ${
        opts.knownClient
          ? ""
-         : `<div class="warn"><strong>Unrecognised destination.</strong> This is not Claude, ChatGPT or a local client.
+         : `<div class="warn"><strong>Unrecognised destination.</strong> This is not a known MCP client (Claude, ChatGPT, Grok, Perplexity or a local client).
             The application name below was chosen by whoever registered it and is not verified.
             Only continue if you started this connection yourself and recognise <strong>${escapeHtml(dest)}</strong>.</div>`
      }
