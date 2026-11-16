@@ -51,8 +51,27 @@ function fail(message: string, status = 400): Response {
   return htmlResponse(errorPage(message), { status, headers: { "set-cookie": stateCookie("", 0) } });
 }
 
-/** Redirect hosts of well-known MCP clients (Claude, ChatGPT, local clients such as Claude Code). */
-const KNOWN_REDIRECT_HOSTS = ["claude.ai", "claude.com", "chatgpt.com", "localhost", "127.0.0.1", "[::1]"];
+/**
+ * Default OAuth redirect hosts: well-known MCP clients (Claude, ChatGPT/OpenAI, Grok/xAI,
+ * Perplexity) and loopback for local clients such as Claude Code. Override with
+ * ALLOWED_REDIRECT_HOSTS (comma-separated hostnames), or "*" to allow any registered redirect.
+ */
+export const DEFAULT_REDIRECT_HOSTS = [
+  "claude.ai",
+  "claude.com",
+  "chatgpt.com",
+  "openai.com",
+  "grok.com",
+  "x.ai",
+  "console.x.ai",
+  "www.perplexity.ai",
+  "perplexity.ai",
+  "enterprise.perplexity.ai",
+  "enterprise.perplexity.com",
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+];
 
 function redirectHostname(uri: string): string {
   try {
@@ -63,16 +82,23 @@ function redirectHostname(uri: string): string {
 }
 
 function isKnownRedirect(uri: string): boolean {
-  return KNOWN_REDIRECT_HOSTS.includes(redirectHostname(uri));
+  return DEFAULT_REDIRECT_HOSTS.includes(redirectHostname(uri));
 }
 
-/** Optional hard allowlist (ALLOWED_REDIRECT_HOSTS, comma-separated hostnames). Empty = allow any registered redirect. */
-function redirectAllowed(env: HandlerEnv, uri: string): boolean {
-  const list = (env.ALLOWED_REDIRECT_HOSTS ?? "")
+/** Effective allowlist: ALLOWED_REDIRECT_HOSTS if set, otherwise the defaults. "*" disables the check. */
+function allowedRedirectHosts(env: HandlerEnv): string[] | "*" {
+  const raw = (env.ALLOWED_REDIRECT_HOSTS ?? "").trim().replace(/^(['"])(.*)\1$/s, "$2").trim();
+  if (raw === "*") return "*";
+  const list = raw
     .split(",")
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
-  return list.length === 0 || list.includes(redirectHostname(uri));
+  return list.length ? list : DEFAULT_REDIRECT_HOSTS;
+}
+
+function redirectAllowed(env: HandlerEnv, uri: string): boolean {
+  const allowed = allowedRedirectHosts(env);
+  return allowed === "*" || allowed.includes(redirectHostname(uri));
 }
 
 /** Parses and validates the OAuth request carried in `request`'s query string. */

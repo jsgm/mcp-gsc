@@ -101,9 +101,11 @@ npx wrangler secret put CF_ACCESS_KEY_ENDPOINT
 
 If your Wrangler version doesn't create the KV namespace automatically, create it with `npx wrangler kv namespace create OAUTH_KV` and add its `id` to `wrangler.jsonc`.
 
-#### Optional: restrict which clients can connect
+#### Optional: change which clients can connect
 
-`ALLOWED_REDIRECT_HOSTS` (comma-separated hostnames, e.g. `claude.ai,chatgpt.com,localhost`) limits which applications the server can issue tokens to. Without it, any client that registers is accepted, and the confirmation page warns when the destination is not Claude, ChatGPT or a local client. Recommended when the server exposes company data.
+The server only issues tokens to these redirect hosts by default: `claude.ai`, `claude.com`, `chatgpt.com`, `openai.com`, `grok.com`, `x.ai`, `console.x.ai`, `www.perplexity.ai`, `perplexity.ai`, `enterprise.perplexity.ai`, `enterprise.perplexity.com`, `localhost`, `127.0.0.1`, `[::1]`. That covers Claude, ChatGPT, Grok, Perplexity and local clients such as Claude Code.
+
+To change the list, set `ALLOWED_REDIRECT_HOSTS` (comma-separated hostnames) as a Worker variable; it replaces the default list. Set it to `*` to accept any client that registers (the confirmation page then warns when the destination is not a known client).
 
 ### 4. Connect the clients
 
@@ -157,7 +159,7 @@ and use that same version of `@modelcontextprotocol/server`.
 - **Read-only**: the Google scope is `webmasters.readonly` and no tool modifies anything.
 - **The service account sees everything it's been granted**: anyone who passes the Access login sees those properties. Keep the Access policy tight.
 - **Confirmation page**: users approve each new connection before logging in, and the login state is bound to a browser cookie, so no other site can complete an authorization on your behalf. The page prominently shows the domain the tokens will go to and warns if it's not a known client, because the application name is chosen by whoever registers it and is not verified.
-- **Allowed clients**: anyone can register an OAuth client (MCP requires it). To stop someone from tricking a user with an authorization link that points to their own domain, set `ALLOWED_REDIRECT_HOSTS`.
+- **Allowed clients**: anyone can register an OAuth client (MCP requires it). To stop someone from tricking a user with an authorization link that points to their own domain, tokens are only issued to a default list of known clients (Claude, ChatGPT, Grok, Perplexity, loopback). Adjust it with `ALLOWED_REDIRECT_HOSTS`.
 - **No writes before approval**: visiting `/authorize` writes nothing to KV; state is only stored when the user clicks *Continue*. Client registration (`/register`) does write to KV and is open; on the Workers KV free plan (1,000 writes per day) abuse could exhaust the daily quota. If that's a concern and you use a custom domain, add a [rate limiting rule](https://developers.cloudflare.com/waf/rate-limiting-rules/) for `/register`, `/authorize` and `/token`.
 - **Third-party data**: search queries and URLs returned by Search Console are written by other people. The tools mark their output as untrusted data so the model doesn't follow instructions it may contain, but be careful when combining this connector with others that can write or send things.
 - **Revoking someone's access**: remove them from the Access policy to block new logins. Existing authorizations are stored in KV (`OAUTH_KV`); to cut them off immediately, delete their grants (`npx wrangler kv key list --binding OAUTH_KV --prefix "grant:"` and `npx wrangler kv key delete`).
