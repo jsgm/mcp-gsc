@@ -101,10 +101,6 @@ npx wrangler secret put CF_ACCESS_KEY_ENDPOINT
 
 If your Wrangler version doesn't create the KV namespace automatically, create it with `npx wrangler kv namespace create OAUTH_KV` and add its `id` to `wrangler.jsonc`.
 
-#### Optional: extra email allowlist
-
-`ALLOWED_EMAILS` (comma-separated emails), added as a Worker variable or secret, is a second allowlist checked by the Worker itself on top of the Access policy.
-
 #### Optional: restrict which clients can connect
 
 `ALLOWED_REDIRECT_HOSTS` (comma-separated hostnames, e.g. `claude.ai,chatgpt.com,localhost`) limits which applications the server can issue tokens to. Without it, any client that registers is accepted, and the confirmation page warns when the destination is not Claude, ChatGPT or a local client. Recommended when the server exposes company data.

@@ -101,10 +101,6 @@ npx wrangler secret put CF_ACCESS_KEY_ENDPOINT
 
 Si tu versión de Wrangler no crea el KV automáticamente, créalo con `npx wrangler kv namespace create OAUTH_KV` y añade su `id` en `wrangler.jsonc`.
 
-#### Opcional: lista extra de emails
-
-`ALLOWED_EMAILS` (emails separados por comas), añadida como variable o secret del Worker, es una segunda lista de permitidos que comprueba el propio Worker además de la política de Access.
-
 #### Opcional: restringir los clientes que pueden conectarse
 
 `ALLOWED_REDIRECT_HOSTS` (dominios separados por comas, p. ej. `claude.ai,chatgpt.com,localhost`) limita a qué aplicaciones puede entregar tokens el servidor. Sin ella se acepta cualquier cliente que se registre, y la página de confirmación avisa cuando el destino no es Claude, ChatGPT o un cliente local. Recomendado si el servidor da acceso a datos de una empresa.

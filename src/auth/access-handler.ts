@@ -106,14 +106,6 @@ function accessOrigin(env: HandlerEnv): string | null {
   }
 }
 
-function allowedByList(env: HandlerEnv, email: string): boolean {
-  const list = (env.ALLOWED_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  return list.length === 0 || list.includes(email.toLowerCase());
-}
-
 async function handleAuthorizeGet(request: Request, env: HandlerEnv): Promise<Response> {
   const { oauthReqInfo, client } = await validatedAuthRequest(request, env);
 
@@ -228,11 +220,8 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
   }
 
   const email = (claims.email ?? "").toLowerCase();
+  // Who may sign in is enforced by the Cloudflare Access policy.
   if (!email) return fail("Your Cloudflare Access identity has no email.", 403);
-  if (!allowedByList(env, email)) {
-    console.log(JSON.stringify({ event: "login_denied", email }));
-    return fail(`${email} is not allowed to use this server.`, 403);
-  }
 
   const props: Props = { sub: claims.sub, email, name: claims.name };
   const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
