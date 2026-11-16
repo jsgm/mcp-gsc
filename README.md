@@ -174,4 +174,6 @@ and use that same version of `@modelcontextprotocol/server`.
 
 ## License
 
-MIT
+[GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`).
+
+You can use, modify and self-host it freely. If you run a **modified** version as a network service for others, the AGPL requires you to offer those users the source code of your version. The Worker's home page links to the source; if you fork it, point that link (`SOURCE_URL` in `src/auth/pages.ts`) to your repository.
