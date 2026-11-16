@@ -1,95 +1,97 @@
 # mcp-gsc
 
+**English** · [Español](README.es.md)
+
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jsgm/mcp-gsc)
 
-Servidor MCP remoto de **Google Search Console** sobre **Cloudflare Workers**, para usarlo desde Claude y ChatGPT (web, escritorio y Claude Code).
+Remote MCP server for **Google Search Console** on **Cloudflare Workers**, for use from Claude and ChatGPT (web, desktop and Claude Code).
 
-- **Una cuenta de servicio por despliegue**, con acceso a todas las propiedades en las que la añadas.
-- **OAuth + Cloudflare Access**: Claude y ChatGPT se conectan por OAuth (lo único que admiten sus conectores) y Cloudflare Access decide quién puede iniciar sesión.
-- **Solo lectura**, sin Docker ni servidores: `wrangler deploy` y listo.
+- **One service account per deployment**, with access to every property you add it to.
+- **OAuth + Cloudflare Access**: Claude and ChatGPT connect over OAuth (the only option their connectors support) and Cloudflare Access decides who can sign in.
+- **Read-only**, no Docker, no servers: `wrangler deploy` and you're done.
 
-## Cómo funciona
+## How it works
 
 ```
-Claude / ChatGPT ──OAuth 2.1──▶ Worker ──JWT de la cuenta de servicio──▶ API de Search Console
+Claude / ChatGPT ──OAuth 2.1──▶ Worker ──service account JWT──▶ Search Console API
                                   │
-                                  └─ login (solo en el navegador) ──▶ Cloudflare Access (OIDC)
+                                  └─ login (browser only) ──▶ Cloudflare Access (OIDC)
 ```
 
-1. Añades `https://<tu-worker>/mcp` como conector OAuth en Claude o ChatGPT.
-2. Se abre una página de confirmación del Worker y, después, el login de Cloudflare Access (código por email, Google, GitHub…).
-3. Si tu email está permitido en Access, el Worker emite sus propios tokens al cliente MCP.
-4. Las herramientas consultan Search Console con la cuenta de servicio.
+1. Add `https://<your-worker>/mcp` as an OAuth connector in Claude or ChatGPT.
+2. The Worker shows a confirmation page, then the Cloudflare Access login (one-time email code, Google, GitHub…).
+3. If your email is allowed in Access, the Worker issues its own tokens to the MCP client.
+4. The tools query Search Console with the service account.
 
-Cloudflare Access **no** se pone delante de `/mcp`: solo interviene en el login. El tráfico MCP lo protegen los tokens que emite el Worker ([`workers-oauth-provider`](https://github.com/cloudflare/workers-oauth-provider)).
+Cloudflare Access does **not** sit in front of `/mcp`: it only takes part in the login. MCP traffic is protected by the tokens the Worker issues ([`workers-oauth-provider`](https://github.com/cloudflare/workers-oauth-provider)).
 
-## Herramientas
+## Tools
 
-| Herramienta | Qué hace |
+| Tool | What it does |
 |---|---|
-| `list_properties` | Propiedades a las que tiene acceso la cuenta de servicio |
-| `get_search_analytics` | Clics, impresiones, CTR y posición por dimensiones, con filtros y fechas |
-| `get_performance_overview` | Totales frente al periodo anterior y tendencia diaria |
-| `compare_search_periods` | Dos periodos por consulta o página: mayores subidas, bajadas, nuevas y perdidas |
-| `get_search_by_page_query` | Consultas de una URL, o URLs de una consulta |
-| `inspect_url` | Estado de indexación, canonical, rastreo, robots.txt, móvil, resultados enriquecidos |
-| `batch_url_inspection` | Hasta 20 URLs en una tabla resumen |
-| `list_sitemaps` | Sitemaps enviados, errores, avisos y URLs enviadas |
-| `get_sitemap_details` | Detalle de un sitemap |
+| `list_properties` | Properties the service account can access |
+| `get_search_analytics` | Clicks, impressions, CTR and position by dimension, with filters and dates |
+| `get_performance_overview` | Totals vs the previous period, plus the daily trend |
+| `compare_search_periods` | Two periods by query or page: biggest gains, losses, new and lost items |
+| `get_search_by_page_query` | Queries for a URL, or URLs for a query |
+| `inspect_url` | Index status, canonical, crawl, robots.txt, mobile usability, rich results |
+| `batch_url_inspection` | Up to 20 URLs in one summary table |
+| `list_sitemaps` | Submitted sitemaps, errors, warnings and submitted URLs |
+| `get_sitemap_details` | Details of one sitemap |
 
-La propiedad se puede indicar como `sc-domain:ejemplo.com`, `https://www.ejemplo.com/` o simplemente `ejemplo.com`; el servidor la resuelve contra las propiedades accesibles.
+A property can be given as `sc-domain:example.com`, `https://www.example.com/` or just `example.com`; the server resolves it against the accessible properties.
 
-## Puesta en marcha
+## Setup
 
-### 1. Cuenta de servicio de Google
+### 1. Google service account
 
-1. En [Google Cloud Console](https://console.cloud.google.com/), crea o elige un proyecto.
-2. **APIs y servicios → Biblioteca**, busca **Google Search Console API** y actívala.
-3. **IAM y administración → Cuentas de servicio → Crear cuenta de servicio** (no necesita roles).
-4. En la cuenta creada: **Claves → Agregar clave → JSON**. Guarda el archivo; no lo subas al repositorio.
-5. En [Search Console](https://search.google.com/search-console), en **cada propiedad**: **Configuración → Usuarios y permisos → Añadir usuario**, con el email de la cuenta de servicio (`...@...iam.gserviceaccount.com`) y permiso **Restringido** (basta para leer) o **Completo**.
+1. In [Google Cloud Console](https://console.cloud.google.com/), create or pick a project.
+2. **APIs & Services → Library**, search for **Google Search Console API** and enable it.
+3. **IAM & Admin → Service Accounts → Create service account** (no roles needed).
+4. On the new account: **Keys → Add key → JSON**. Keep the file safe; do not commit it.
+5. In [Search Console](https://search.google.com/search-console), on **each property**: **Settings → Users and permissions → Add user**, with the service account email (`...@...iam.gserviceaccount.com`) and **Restricted** (enough to read) or **Full** permission.
 
-Para añadir una web más adelante solo repites el paso 5; no hay que tocar el Worker.
+To add a site later, just repeat step 5; the Worker needs no changes.
 
-### 2. Aplicación de Cloudflare Access (OIDC)
+### 2. Cloudflare Access application (OIDC)
 
-La URL del Worker será `https://<nombre-del-worker>.<tu-subdominio>.workers.dev` (el nombre por defecto es `mcp-gsc`; tu subdominio aparece en **Workers & Pages** del panel de Cloudflare). Puedes crear la aplicación de Access antes de desplegar con esa URL prevista.
+The Worker URL will be `https://<worker-name>.<your-subdomain>.workers.dev` (default name `mcp-gsc`; your subdomain is shown under **Workers & Pages** in the Cloudflare dashboard). You can create the Access application before deploying, using that expected URL.
 
-En el panel de **Cloudflare Zero Trust** (si es la primera vez, te pedirá elegir un nombre de equipo; el plan gratuito cubre hasta 50 usuarios):
+In the **Cloudflare Zero Trust** dashboard (the first time, you'll be asked to pick a team name; the free plan covers up to 50 users):
 
 1. **Access → Applications → Add an application → SaaS**.
-2. Nombre: `mcp-gsc`. Protocolo de autenticación: **OIDC**.
-3. **Redirect URLs**: `https://mcp-gsc.<tu-subdominio>.workers.dev/callback`
-   (para desarrollo local añade también `http://localhost:8787/callback`).
+2. Name: `mcp-gsc`. Authentication protocol: **OIDC**.
+3. **Redirect URLs**: `https://mcp-gsc.<your-subdomain>.workers.dev/callback`
+   (for local development, also add `http://localhost:8787/callback`).
 4. **Scopes**: `openid`, `email`, `profile`.
-5. Guarda y copia **Client ID**, **Client secret**, **Authorization endpoint**, **Token endpoint** y **Key endpoint** (JWKS).
-6. **Policies**: crea una política *Allow* que incluya los emails (o el dominio) que pueden usar el servidor.
-7. **Login methods**: elige los métodos (código de un solo uso por email, Google, GitHub…).
+5. Save and copy the **Client ID**, **Client secret**, **Authorization endpoint**, **Token endpoint** and **Key endpoint** (JWKS).
+6. **Policies**: create an *Allow* policy that includes the emails (or domain) allowed to use the server.
+7. **Login methods**: choose the methods (one-time email code, Google, GitHub…).
 
-Los nombres exactos del panel pueden variar ligeramente según la versión de Zero Trust.
+Exact dashboard labels may vary slightly between Zero Trust versions.
 
-### 3. Desplegar
+### 3. Deploy
 
-#### Opción A: botón "Deploy to Cloudflare" (recomendado)
+#### Option A: "Deploy to Cloudflare" button (recommended)
 
-1. Pulsa el botón del principio de este README.
-2. Cloudflare copia el repositorio en tu GitHub o GitLab, crea el Worker y el KV, y configura despliegues automáticos en cada push.
-3. Te pedirá los 6 secrets, con una descripción de dónde sacar cada uno:
-   - `GSC_SERVICE_ACCOUNT_JSON`: pega el contenido completo del JSON de la cuenta de servicio.
-   - `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `CF_ACCESS_AUTHORIZATION_ENDPOINT`, `CF_ACCESS_TOKEN_ENDPOINT`, `CF_ACCESS_KEY_ENDPOINT`: los valores del paso 2.
-4. Si cambias el nombre del Worker en el formulario, actualiza la Redirect URL de la aplicación de Access para que coincida.
+1. Click the button at the top of this document.
+2. Cloudflare copies the repository to your GitHub or GitLab, creates the Worker and the KV namespace, and sets up automatic deploys on every push.
+3. It asks for the 6 secrets, with a description of where to find each one:
+   - `GSC_SERVICE_ACCOUNT_JSON`: paste the full contents of the service account JSON.
+   - `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET`, `CF_ACCESS_AUTHORIZATION_ENDPOINT`, `CF_ACCESS_TOKEN_ENDPOINT`, `CF_ACCESS_KEY_ENDPOINT`: the values from step 2.
+4. If you change the Worker name in the form, update the Access application's Redirect URL to match.
 
-Si aún no tienes la aplicación de Access, puedes poner `pendiente` en sus secrets y cambiarlos después en **Workers & Pages → mcp-gsc → Settings → Variables and Secrets**. El MCP no funcionará hasta entonces, porque el login depende de ellos.
+If you don't have the Access application yet, you can enter `pending` for its secrets and change them later in **Workers & Pages → mcp-gsc → Settings → Variables and Secrets**. The MCP server won't work until then, because the login depends on them.
 
-#### Opción B: manual con Wrangler
+#### Option B: manually with Wrangler
 
 ```bash
 git clone https://github.com/jsgm/mcp-gsc && cd mcp-gsc
 npm install
 npx wrangler login
-npx wrangler deploy        # crea el KV automáticamente → https://mcp-gsc.<tu-subdominio>.workers.dev
+npx wrangler deploy        # creates the KV namespace automatically → https://mcp-gsc.<your-subdomain>.workers.dev
 
-npx wrangler secret put GSC_SERVICE_ACCOUNT_JSON < ruta/a/la-cuenta-de-servicio.json
+npx wrangler secret put GSC_SERVICE_ACCOUNT_JSON < path/to/service-account.json
 npx wrangler secret put CF_ACCESS_CLIENT_ID
 npx wrangler secret put CF_ACCESS_CLIENT_SECRET
 npx wrangler secret put CF_ACCESS_AUTHORIZATION_ENDPOINT
@@ -97,81 +99,81 @@ npx wrangler secret put CF_ACCESS_TOKEN_ENDPOINT
 npx wrangler secret put CF_ACCESS_KEY_ENDPOINT
 ```
 
-Si tu versión de Wrangler no crea el KV automáticamente, créalo con `npx wrangler kv namespace create OAUTH_KV` y añade su `id` en `wrangler.jsonc`.
+If your Wrangler version doesn't create the KV namespace automatically, create it with `npx wrangler kv namespace create OAUTH_KV` and add its `id` to `wrangler.jsonc`.
 
-#### Opcional: lista extra de emails
+#### Optional: extra email allowlist
 
-`ALLOWED_EMAILS` (emails separados por comas), añadida como variable o secret del Worker, es una segunda lista de permitidos que comprueba el propio Worker además de la política de Access.
+`ALLOWED_EMAILS` (comma-separated emails), added as a Worker variable or secret, is a second allowlist checked by the Worker itself on top of the Access policy.
 
-#### Opcional: restringir los clientes que pueden conectarse
+#### Optional: restrict which clients can connect
 
-`ALLOWED_REDIRECT_HOSTS` (dominios separados por comas, p. ej. `claude.ai,chatgpt.com,localhost`) limita a qué aplicaciones puede entregar tokens el servidor. Sin ella se acepta cualquier cliente que se registre, y la página de confirmación avisa cuando el destino no es Claude, ChatGPT o un cliente local. Recomendado si el servidor da acceso a datos de una empresa.
+`ALLOWED_REDIRECT_HOSTS` (comma-separated hostnames, e.g. `claude.ai,chatgpt.com,localhost`) limits which applications the server can issue tokens to. Without it, any client that registers is accepted, and the confirmation page warns when the destination is not Claude, ChatGPT or a local client. Recommended when the server exposes company data.
 
-### 4. Conectar los clientes
+### 4. Connect the clients
 
-**Claude (web o escritorio):** Ajustes → Conectores → *Añadir conector personalizado* → URL `https://mcp-gsc.<tu-subdominio>.workers.dev/mcp`. Al conectar se abrirá el login.
+**Claude (web or desktop):** Settings → Connectors → *Add custom connector* → URL `https://mcp-gsc.<your-subdomain>.workers.dev/mcp`. Connecting opens the login.
 
-**ChatGPT:** Ajustes → Apps y conectores → Avanzado → activar *Modo desarrollador* → *Crear*, con la misma URL y autenticación **OAuth**. (Requiere un plan con modo desarrollador.)
+**ChatGPT:** Settings → Apps & Connectors → Advanced → enable *Developer mode* → *Create*, with the same URL and **OAuth** authentication. (Requires a plan with developer mode.)
 
 **Claude Code:**
 
 ```bash
-claude mcp add --transport http gsc https://mcp-gsc.<tu-subdominio>.workers.dev/mcp
+claude mcp add --transport http gsc https://mcp-gsc.<your-subdomain>.workers.dev/mcp
 ```
 
-Prueba con: *"Lista mis propiedades de Search Console"*.
+Try: *"List my Search Console properties"*.
 
-## Un segundo despliegue (por ejemplo, personal)
+## A second deployment (e.g. personal)
 
-Mismo código, otra cuenta de servicio y otro Worker:
+Same code, another service account and another Worker.
 
-Lo más sencillo es pulsar otra vez el botón "Deploy to Cloudflare" desde la cuenta de Cloudflare que corresponda, con otro nombre de Worker (p. ej. `mcp-gsc-personal`). A mano:
+The easiest way is to click the "Deploy to Cloudflare" button again from the right Cloudflare account, with a different Worker name (e.g. `mcp-gsc-personal`). Manually:
 
 ```bash
-cp wrangler.jsonc wrangler.personal.jsonc   # cambia "name" (p. ej. mcp-gsc-personal)
-npx wrangler deploy -c wrangler.personal.jsonc   # crea su propio KV
+cp wrangler.jsonc wrangler.personal.jsonc   # change "name" (e.g. mcp-gsc-personal)
+npx wrangler deploy -c wrangler.personal.jsonc   # creates its own KV namespace
 npx wrangler secret put GSC_SERVICE_ACCOUNT_JSON -c wrangler.personal.jsonc < personal.json
-# ...resto de secrets con -c wrangler.personal.jsonc
+# ...remaining secrets with -c wrangler.personal.jsonc
 ```
 
-Crea otra aplicación de Access (o añade su `/callback` a la existente) y conéctalo como otro conector. Lo recomendable es que cada credencial viva en la cuenta de Cloudflare de su dueño (empresa o personal).
+Create another Access application (or add its `/callback` to the existing one) and connect it as another connector. Ideally, each credential lives in its owner's Cloudflare account (company or personal).
 
-## Desarrollo local
+## Local development
 
 ```bash
-cp .dev.vars.example .dev.vars   # rellena los valores
+cp .dev.vars.example .dev.vars   # fill in the values
 npm run dev                      # http://localhost:8787
-npx @modelcontextprotocol/inspector   # conecta a http://localhost:8787/mcp
+npx @modelcontextprotocol/inspector   # connect to http://localhost:8787/mcp
 ```
 
-### Actualizar dependencias
+### Updating dependencies
 
-El servidor usa `createMcpHandler` de `agents` con el SDK v2 de MCP (`@modelcontextprotocol/server`), sin estado y sin Durable Objects. `agents` exige una versión **exacta** de `@modelcontextprotocol/server` y no la instala por ti, así que ambas están fijadas en `package.json`. Si actualizas `agents`, consulta la versión que pide:
+The server uses `createMcpHandler` from `agents` with the MCP SDK v2 (`@modelcontextprotocol/server`): stateless, no Durable Objects. `agents` requires an **exact** version of `@modelcontextprotocol/server` and doesn't install it for you, so both are pinned in `package.json`. If you update `agents`, check the version it expects:
 
 ```bash
-npm view agents@<versión> peerDependencies
+npm view agents@<version> peerDependencies
 ```
 
-y pon esa misma versión de `@modelcontextprotocol/server`.
+and use that same version of `@modelcontextprotocol/server`.
 
-## Seguridad
+## Security
 
-- **Solo lectura**: el scope de Google es `webmasters.readonly` y no hay herramientas que modifiquen nada.
-- **La cuenta de servicio ve todo lo que tenga asignado**: cualquiera que pase el login de Access verá esas propiedades. Mantén la política de Access ajustada.
-- **Página de confirmación**: el usuario aprueba cada nueva conexión antes del login, y el estado del login va ligado a una cookie del navegador, para evitar que otro sitio complete una autorización en tu nombre. La página muestra en grande el dominio al que irán los tokens y avisa si no es un cliente conocido, porque el nombre de la aplicación lo elige quien la registra y no está verificado.
-- **Clientes permitidos**: cualquiera puede registrar un cliente OAuth (lo exige MCP). Para que nadie pueda engañar a un usuario con un enlace de autorización hacia un dominio propio, define `ALLOWED_REDIRECT_HOSTS`.
-- **Sin escrituras antes de aprobar**: visitar `/authorize` no escribe nada en KV; solo se guarda estado cuando el usuario pulsa *Continue*. El registro de clientes (`/register`) sí escribe en KV y es abierto; en el plan gratuito de Workers KV (1.000 escrituras al día) un abuso podría agotar la cuota diaria. Si te preocupa y usas un dominio propio, añade una regla de [rate limiting](https://developers.cloudflare.com/waf/rate-limiting-rules/) para `/register`, `/authorize` y `/token`.
-- **Datos de terceros**: las consultas de búsqueda y las URLs que devuelve Search Console las escriben otras personas. Las herramientas marcan su salida como datos no fiables para que el modelo no siga instrucciones que puedan contener, pero ten cuidado al combinar este conector con otros que puedan escribir o enviar cosas.
-- **Quitar acceso a alguien**: elimínalo de la política de Access para impedir nuevos logins. Las conexiones ya autorizadas se guardan en KV (`OAUTH_KV`); para cortarlas al momento, borra sus grants (`npx wrangler kv key list --binding OAUTH_KV --prefix "grant:"` y `npx wrangler kv key delete`).
-- **Logs**: cada llamada registra usuario, herramienta, duración y resultado (visible en *Workers → Logs*), sin datos de Search Console. Los errores inesperados del login muestran solo una referencia; el detalle queda en los logs.
-- **Dependencias**: tras el primer `npm install`, sube `package-lock.json` al repositorio para que todos los builds usen exactamente las mismas versiones.
+- **Read-only**: the Google scope is `webmasters.readonly` and no tool modifies anything.
+- **The service account sees everything it's been granted**: anyone who passes the Access login sees those properties. Keep the Access policy tight.
+- **Confirmation page**: users approve each new connection before logging in, and the login state is bound to a browser cookie, so no other site can complete an authorization on your behalf. The page prominently shows the domain the tokens will go to and warns if it's not a known client, because the application name is chosen by whoever registers it and is not verified.
+- **Allowed clients**: anyone can register an OAuth client (MCP requires it). To stop someone from tricking a user with an authorization link that points to their own domain, set `ALLOWED_REDIRECT_HOSTS`.
+- **No writes before approval**: visiting `/authorize` writes nothing to KV; state is only stored when the user clicks *Continue*. Client registration (`/register`) does write to KV and is open; on the Workers KV free plan (1,000 writes per day) abuse could exhaust the daily quota. If that's a concern and you use a custom domain, add a [rate limiting rule](https://developers.cloudflare.com/waf/rate-limiting-rules/) for `/register`, `/authorize` and `/token`.
+- **Third-party data**: search queries and URLs returned by Search Console are written by other people. The tools mark their output as untrusted data so the model doesn't follow instructions it may contain, but be careful when combining this connector with others that can write or send things.
+- **Revoking someone's access**: remove them from the Access policy to block new logins. Existing authorizations are stored in KV (`OAUTH_KV`); to cut them off immediately, delete their grants (`npx wrangler kv key list --binding OAUTH_KV --prefix "grant:"` and `npx wrangler kv key delete`).
+- **Logs**: each call logs user, tool, duration and result (visible under *Workers → Logs*), with no Search Console data. Unexpected login errors show only a reference; details stay in the logs.
+- **Dependencies**: after the first `npm install`, commit `package-lock.json` so every build uses exactly the same versions.
 
-## Límites
+## Limits
 
-- **Inspección de URLs**: unas 2.000 al día por propiedad (y 600 por minuto), según Google.
-- **Search Analytics**: máximo 25.000 filas por petición; datos de los últimos 16 meses, con 2–3 días de retraso.
-- **Plan gratuito de Workers**: unas 50 subpeticiones por invocación; suficiente para todas las herramientas tal como están (la inspección por lotes se limita a 20 URLs).
+- **URL inspection**: about 2,000 per day per property (and 600 per minute), according to Google.
+- **Search Analytics**: at most 25,000 rows per request; data for the last 16 months, with a 2–3 day delay.
+- **Workers free plan**: about 50 subrequests per invocation; enough for every tool as implemented (batch inspection is capped at 20 URLs).
 
-## Licencia
+## License
 
 MIT
