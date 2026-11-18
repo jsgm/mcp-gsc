@@ -17,7 +17,17 @@ import { consentPage, errorPage, homePage, htmlResponse } from "./pages";
  */
 
 const STATE_TTL_SECONDS = 600;
-const COOKIE = "__Host-mcp_gsc_state";
+/**
+ * One cookie per login attempt (`__Host-mcp_gsc_state_<stateId>`), not one shared cookie.
+ * A shared cookie was overwritten whenever the consent page loaded twice in the same browser
+ * (a blocked popup followed by Claude's "Connect" button, a double click, a retry…), so
+ * approving on the earlier page failed with "Login session expired or invalid".
+ */
+const COOKIE_PREFIX = "__Host-mcp_gsc_state_";
+const STATE_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+
+const cookieName = (stateId: string) => `${COOKIE_PREFIX}${stateId}`;
+const validStateId = (id: string | null | undefined): id is string => !!id && STATE_ID_RE.test(id);
 
 interface PendingAuth {
   oauthReqInfo: AuthRequest;
@@ -36,8 +46,19 @@ function readCookie(request: Request, name: string): string | undefined {
   return undefined;
 }
 
-function stateCookie(value: string, maxAge: number): string {
-  return `${COOKIE}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`;
+function stateCookie(stateId: string, maxAge: number): string {
+  const value = maxAge > 0 ? stateId : "";
+  return `${cookieName(stateId)}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`;
+}
+
+/** True if this browser holds the cookie for `stateId`. Logs why not, for diagnosis. */
+function hasStateCookie(request: Request, stateId: string, step: string): boolean {
+  const cookie = readCookie(request, cookieName(stateId));
+  if (cookie && timingSafeEqual(stateId, cookie)) return true;
+  const header = request.headers.get("cookie") ?? "";
+  const otherAttempts = header.split(";").filter((c) => c.trim().startsWith(COOKIE_PREFIX)).length;
+  console.log(JSON.stringify({ event: "state_cookie_invalid", step, reason: cookie ? "mismatch" : "missing", otherAttempts }));
+  return false;
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -47,8 +68,9 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
-function fail(message: string, status = 400): Response {
-  return htmlResponse(errorPage(message), { status, headers: { "set-cookie": stateCookie("", 0) } });
+function fail(message: string, status = 400, stateId?: string): Response {
+  const headers: Record<string, string> = validStateId(stateId) ? { "set-cookie": stateCookie(stateId, 0) } : {};
+  return htmlResponse(errorPage(message), { status, headers });
 }
 
 /**
@@ -164,11 +186,13 @@ async function handleAuthorizePost(request: Request, env: HandlerEnv): Promise<R
   const form = await request.formData();
   const stateId = String(form.get("state") ?? "");
   const query = String(form.get("query") ?? "");
-  const cookie = readCookie(request, COOKIE);
-  if (!stateId || !cookie || !timingSafeEqual(stateId, cookie)) {
-    return fail("Login session expired or invalid. Start the connection again from your MCP client.");
+  if (!validStateId(stateId) || !hasStateCookie(request, stateId, "authorize")) {
+    return fail(
+      "Login session expired or invalid. Close this window and start the connection again from your MCP client. " +
+        "If it keeps happening, check that your browser allows cookies for this site.",
+    );
   }
-  if (!query.startsWith("?") || query.length > 8192) return fail("Invalid authorization request.");
+  if (!query.startsWith("?") || query.length > 8192) return fail("Invalid authorization request.", 400, stateId);
 
   // Re-parse and re-validate exactly what was shown on the consent page.
   const original = new Request(new URL(`/authorize${query}`, request.url).href, { method: "GET" });
@@ -192,21 +216,28 @@ async function handleAuthorizePost(request: Request, env: HandlerEnv): Promise<R
 async function handleCallback(request: Request, env: HandlerEnv): Promise<Response> {
   const url = new URL(request.url);
   const error = url.searchParams.get("error");
-  if (error) return fail(`Cloudflare Access returned an error: ${error}`);
+  if (error) return fail(`Cloudflare Access returned an error: ${error}`, 400, url.searchParams.get("state") ?? undefined);
 
   const code = url.searchParams.get("code");
   const stateId = url.searchParams.get("state");
-  const cookie = readCookie(request, COOKIE);
-  if (!code || !stateId) return fail("Missing code or state.");
+  if (!code || !validStateId(stateId)) return fail("Missing code or state.");
   const cfg = accessConfig(env);
   // The cookie ties the callback to the browser that saw the consent page.
-  if (!cookie || !timingSafeEqual(stateId, cookie)) return fail("Login session mismatch. Start again from your MCP client.");
+  if (!hasStateCookie(request, stateId, "callback")) {
+    return fail("Login session mismatch. Finish the login in the same browser where it started, or start again from your MCP client.");
+  }
 
   const raw = await env.OAUTH_KV.get(stateKey(stateId));
-  if (!raw) return fail("Login session expired. Start the connection again from your MCP client.");
+  if (!raw) {
+    return fail(
+      `Login session expired (logins must finish within ${STATE_TTL_SECONDS / 60} minutes). Start the connection again from your MCP client.`,
+      400,
+      stateId,
+    );
+  }
   await env.OAUTH_KV.delete(stateKey(stateId));
   const pending = JSON.parse(raw) as PendingAuth;
-  if (!pending.approved) return fail("This login was not approved.");
+  if (!pending.approved) return fail("This login was not approved.", 400, stateId);
 
   // Exchange the code with Cloudflare Access.
   const tokenRes = await fetch(cfg.tokenEndpoint, {
@@ -262,7 +293,7 @@ async function handleCallback(request: Request, env: HandlerEnv): Promise<Respon
 
   return new Response(null, {
     status: 302,
-    headers: { location: redirectTo, "set-cookie": stateCookie("", 0), "cache-control": "no-store" },
+    headers: { location: redirectTo, "set-cookie": stateCookie(stateId, 0), "cache-control": "no-store" },
   });
 }
 
